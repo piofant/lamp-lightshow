@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Светошоу для лампочки Яндекса</title>
+<style>
+			* { box-sizing: border-box; }
+			html, body { margin: 0; background: #0a0c10; color: #e8efe9;
+				font-family: ui-monospace, 'SF Mono', Monaco, monospace; font-size: 13px; }
+			a { color: #7fd3ad; }
+			.lp-top { display: flex; align-items: center; gap: 14px; padding: 14px 16px 6px; flex-wrap: wrap; }
+			.lp-top h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: .02em; color: #e8efe9; font-family: inherit; }
+			input[type=range] { accent-color: #2bb37d; }
+			.lp-row { display: flex; align-items: center; gap: 8px; padding: 6px 16px; flex-wrap: wrap; }
+			.lp-sp { flex: 1; }
+			button, .lp-file, select, input[type=number] { font-family: inherit; font-size: 12px; line-height: 1;
+				padding: 8px 12px; border-radius: 999px; cursor: pointer; border: 1px solid #24513f;
+				background: rgba(12,22,18,.75); color: #cfe9dd; }
+			input[type=number] { width: 78px; cursor: text; border-radius: 10px; }
+			select { border-radius: 10px; }
+			button:hover, .lp-file:hover { border-color: #2bb37d; }
+			button.on { background: #2bb37d; color: #06130d; border-color: #2bb37d; }
+			button.hot { background: #e5482f; color: #fff; border-color: #e5482f; }
+			.lp-file input { display: none; }
+			label { color: #8fb3a3; display: flex; align-items: center; gap: 6px; }
+			.lp-sw { width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 2px solid #0a0c10;
+				box-shadow: 0 0 0 1px #24513f; }
+			.lp-sw.sel { box-shadow: 0 0 0 3px #e8efe9; }
+			.lp-sw.erase { background: repeating-linear-gradient(45deg, #0a0c10 0 4px, #24513f 4px 8px); }
+			#lp-scroller { overflow-x: auto; overflow-y: hidden; margin: 8px 16px; border: 1px solid #1b3a2e;
+				border-radius: 12px; position: relative; height: 192px; background: #0d1116; }
+			#lp-spacer { height: 1px; }
+			#lp-cv { position: sticky; left: 0; top: 0; display: block; touch-action: pan-y; }
+			#lp-lamp { width: 54px; height: 54px; border-radius: 50%; background: #1a1f26;
+				box-shadow: 0 0 0 1px #24513f; transition: background .08s, box-shadow .08s; }
+			#lp-auth { color: #8fb3a3; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+			.lp-hint { color: #6f8a7e; padding: 0 16px; line-height: 1.5; }
+			#lp-log { color: #6f8a7e; padding: 6px 16px 24px; white-space: pre-wrap; max-height: 150px; overflow: auto; font-size: 11px; }
+			.lp-own { display: none; }
+			/* кружок с камерой: как видео-кружок, обводка светится цветом лампы */
+			#lp-cam { position: fixed; right: 24px; bottom: 24px; width: 220px; height: 220px; border-radius: 50%;
+				overflow: hidden; z-index: 20; display: none; border: 3px solid #24513f; background: #000;
+				box-shadow: 0 0 0 1px #0a0c10, 0 0 40px rgba(0,0,0,.6); cursor: grab; touch-action: none;
+				transition: width .2s, height .2s, border-color .08s, box-shadow .08s; }
+			#lp-cam.show { display: block; }
+			#lp-cam.big { width: 360px; height: 360px; }
+			#lp-cam video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); pointer-events: none; }
+			#lp-cam.back video { transform: none; }
+			.lp-own.show { display: flex; }
+		</style>
+</head>
+<body>
+		<div class="lp-top">
+			<h1>💡 Светошоу для лампочки Яндекса</h1>
+			<div id="lp-auth"></div>
+			<div class="lp-sp"></div>
+			<button id="lp-camera" title="Кружок с веб-камерой: тащи мышкой, двойной клик — больше/меньше">📷 камера</button>
+			<button id="lp-flip" title="Другая камера (на телефоне — задняя)" style="display:none">⟲</button>
+			<div id="lp-lamp" title="Как сейчас горит лампа"></div>
+		</div>
+
+		<div class="lp-row">
+			<select id="lp-track"></select>
+			<label class="lp-file" id="lp-file-btn" title="mp3 для выбранного трека из списка (если его нет в web/audio) или любой свой трек">🎵 файл<input type="file" id="lp-file" accept="audio/*"></label>
+			<button id="lp-play">▶ играть</button>
+			<button id="lp-live" title="Во время игры слать свет на настоящую лампу">💡 на лампу: выкл</button>
+			<button id="lp-auto" title="Собрать шоу по разбору трека: тихо — перелив, мощно — вспышки, смена части — белый">✨ авто-свет</button>
+			<button id="lp-white">белый свет</button>
+		</div>
+
+		<div class="lp-row lp-own" id="lp-own">
+			<label>BPM <input type="number" id="lp-bpm" value="120" min="40" max="240" step="0.1"></label>
+			<button id="lp-tap" title="Стучи в такт">тап</button>
+			<label>первая доля, с <input type="number" id="lp-first" value="0" step="0.01"></label>
+			<button id="lp-setfirst" title="Первая доля — в текущую точку">доля здесь</button>
+		</div>
+
+		<div class="lp-row" id="lp-palette"></div>
+
+		<div class="lp-row">
+			<label>яркость <input type="range" id="lp-bri" min="1" max="100" value="100"></label>
+			<button id="lp-mode" class="on" title="Резко — короткий вход и держим; плавно — перетекает за клетку">резко</button>
+			<label>сетка <select id="lp-res"><option value="1">1 доля</option><option value="2" selected>½ доли</option><option value="4">¼ доли</option></select></label>
+			<button id="lp-zin">＋</button><button id="lp-zout">－</button>
+			<label>задержка лампы, мс <input type="number" id="lp-offset" value="400" step="10"></label>
+			<button id="lp-clear">стереть</button>
+		</div>
+
+		<div id="lp-scroller"><div id="lp-spacer"></div><canvas id="lp-cv"></canvas></div>
+		<div class="lp-hint">Сверху волна: тап — перемотка, тянуть — прокрутка. Снизу лампа: рисуй цветом по клеткам, пустая клетка держит прошлый цвет.
+		Лампа помнит до 16 шагов, поэтому шоу уходит на неё кусками по ходу трека. Далёкие цвета в быстром ритме она смешивает — красный↔синий станет розовым; в бит лучше всего «цвет ↔ тьма» или соседние оттенки.</div>
+		<div id="lp-log"></div>
+		<div id="lp-cam"><video id="lp-video" autoplay muted playsinline></video></div>
+
+		
+<script type="module">
+import { PALETTE, DARK, gridFromBpm, beatTime, beatAt, buildChunks, colorAt, autoShow } from './lamp-show.mjs';
+
+await (async () => {
+const $ = (id) => document.getElementById('lp-' + id);
+const tracksResp = await fetch('tracks.json');
+if (!tracksResp.ok) { document.body.insertAdjacentHTML('afterbegin', '<p style="padding:16px;color:#e5482f">Не найден web/tracks.json — запускай страницу через server.py.</p>'); throw new Error('tracks.json ' + tracksResp.status); }
+const TRACKS = (await tracksResp.json()).tracks
+	.map((t) => ({ ...t, src: 'audio/' + t.id + '.mp3' }));
+// Страница и посредник (server.py) на одном адресе.
+const RELAY = '';
+
+const audio = new Audio();
+audio.preload = 'auto';
+let track = null, beats = [], cells = {}, peaks = null, duration = 0;
+let pxPerBeat = 48, brush = { h: 0, s: 100 }, eraser = false;
+let liveOn = false, chunks = [], timer = null, taps = [];
+let token = null, authed = false, lamp = localStorage.getItem('lamp:id') || '';
+let loadId = 0;                 // защита от гонки: волна старого трека не должна перезаписать новый
+const OWN = {};                 // свои файлы этой вкладки: id → { title, url }
+
+const log = (m) => { $('log').textContent = new Date().toLocaleTimeString() + '  ' + m + '\n' + $('log').textContent; };
+const cellQ = () => 4 / +$('res').value;
+const offsetSec = () => (+$('offset').value || 0) / 1000;
+const css = (c) => !c ? '#1a1f26' : c.s === 0 ? `hsl(0 0% ${(c.b ?? 100) <= 1 ? 4 : 40 + (c.b ?? 100) * 0.55}%)`
+	: `hsl(${c.h} ${c.s}% ${(c.b ?? 100) <= 1 ? 4 : 22 + (c.b ?? 100) * 0.3}%)`;
+
+/* ---------- вход через Яндекс и выбор лампы ---------- */
+async function api(path, body) {
+	const r = await fetch(RELAY + path, {
+		method: body ? 'POST' : 'GET',
+		headers: { ...(token ? { Authorization: 'Bearer ' + token } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) },
+		body: body ? JSON.stringify(body) : undefined,
+	});
+	const j = await r.json().catch(() => ({}));
+	if (r.status === 401 && token) { localStorage.removeItem('lamp:token'); token = null; authed = false; renderAuth(); }
+	return { status: r.status, ...j };
+}
+async function renderAuth() {
+	const box = $('auth');
+	box.textContent = 'ищу лампы…';
+	authed = false;
+	try {
+		const j = await api('/api/lamps');
+		if (!j.lamps) {
+			box.textContent = '';
+			box.textContent = j.status === 401 ? 'нет токена: положи YANDEX_IOT_TOKEN в .env (см. README)' : 'не вышло: ' + (j.error || j.status);
+			return;
+		}
+		authed = true;
+		const usable = j.lamps.filter((l) => l.scenes);
+		if (!usable.length) { box.textContent = 'нет ламп, которые умеют свою анимацию'; return; }
+		if (!usable.some((l) => l.id === lamp)) lamp = usable[0].id;
+		const sel = document.createElement('select');
+		for (const l of usable) { const o = new Option(`💡 ${l.name}${l.room ? ' · ' + l.room : ''}`, l.id); sel.add(o); }
+		sel.value = lamp; sel.onchange = () => { lamp = sel.value; localStorage.setItem('lamp:id', lamp); };
+		localStorage.setItem('lamp:id', lamp);
+		box.textContent = ''; box.append(sel);
+	} catch (e) { box.textContent = 'сервер лампы недоступен'; log('сервер лампы недоступен: ' + e); }
+	if (!authed) { const r = document.createElement('button'); r.textContent = 'повторить'; r.onclick = renderAuth; box.append(' ', r); }
+}
+
+/* ---------- треки ---------- */
+for (const t of TRACKS) $('track').add(new Option(`${t.title} · ${t.bpm} BPM`, t.id));
+const storeKey = () => 'lamp:show:' + (track ? track.id : 'none');
+function save() { if (track) localStorage.setItem(storeKey(), JSON.stringify({ cells, res: $('res').value, offset: $('offset').value, bpm: $('bpm').value, first: $('first').value })); }
+function restore() {
+	let o = null; try { o = JSON.parse(localStorage.getItem(storeKey())); } catch (e) {}
+	cells = (o && o.cells) || {};
+	if (o && o.res) $('res').value = o.res;
+	if (o && o.offset) $('offset').value = o.offset;
+	if (o && o.bpm) $('bpm').value = o.bpm;
+	if (o && o.first) $('first').value = o.first;
+}
+async function loadPeaks(buf, id) {
+	const ctx = new (window.AudioContext || window.webkitAudioContext)();
+	const ab = await ctx.decodeAudioData(buf);
+	if (id !== loadId) return false;
+	duration = ab.duration;
+	const ch = ab.getChannelData(0), step = Math.floor(ab.sampleRate / 200);
+	peaks = new Float32Array(Math.ceil(ch.length / step));
+	for (let i = 0; i < peaks.length; i++) { let m = 0; for (let j = i * step, e = Math.min(ch.length, j + step); j < e; j += 4) m = Math.max(m, Math.abs(ch[j])); peaks[i] = m; }
+	ctx.close && ctx.close();
+	return true;
+}
+async function pickTrack(id) {
+	stop();
+	const my = ++loadId;
+	if (OWN[id]) return openOwn(id, OWN[id], my);
+	track = TRACKS.find((t) => t.id === id) || TRACKS[0];
+	$('own').classList.remove('show');
+	beats = track.beats; duration = track.duration; peaks = null;
+	audio.src = track.src; restore(); layout();
+	log('трек: ' + track.title);
+	audio.onerror = () => { if (my !== loadId) return; track.missing = true; draw(); log(`нет файла ${track.src} — положи mp3 туда или нажми «🎵 файл» и выбери свою копию трека: разметка останется`); };
+	try { const resp = await fetch(track.src); if (!resp.ok) { track.missing = true; draw(); return; } const buf = await resp.arrayBuffer(); if (my === loadId && await loadPeaks(buf, my)) layout(); }
+	catch (e) { if (my === loadId) log('волну не нарисовать: ' + e); }
+}
+async function openOwn(id, own, my) {
+	if (own.base) {
+		// разметка из tracks.json + свой mp3 того же трека
+		track = { ...own.base, src: own.url };
+		$('own').classList.remove('show');
+		beats = track.beats; duration = track.duration; peaks = null;
+		audio.src = own.url; restore(); layout();
+		try { if (await loadPeaks(await (await fetch(own.url)).arrayBuffer(), my)) layout(); }
+		catch (e) { if (my === loadId) log('файл не читается браузером: ' + e); }
+		if (my === loadId) log(`${own.base.title}: звук из «${own.title}», разметка из tracks.json`);
+		return;
+	}
+	track = { id, title: own.title, bars: '', events: [] };
+	$('own').classList.add('show');
+	audio.src = own.url; peaks = null; duration = 0; restore();
+	try { await loadPeaks(await (await fetch(own.url)).arrayBuffer(), my); }
+	catch (e) { if (my === loadId) log('файл не читается браузером: ' + e); }
+	if (my !== loadId) return;
+	regrid(); log('свой файл: ' + own.title + ' — задай BPM и первую долю');
+}
+$('track').onchange = (e) => pickTrack(e.target.value);
+$('file').onchange = (e) => {
+	const f = e.target.files[0]; if (!f) return;
+	// у выбранного трека из списка нет звука — привязываем файл к его разметке
+	const base = !track || track.id.startsWith('file:') ? null
+		: OWN[track.id]?.base || (track.missing || audio.error ? track : null);
+	const id = base ? base.id : 'file:' + f.name;
+	if (!base && !OWN[id]) $('track').add(new Option('свой: ' + f.name, id));
+	if (OWN[id]) URL.revokeObjectURL(OWN[id].url);
+	OWN[id] = { title: f.name, url: URL.createObjectURL(f), base };
+	$('track').value = id; pickTrack(id);
+	e.target.value = '';
+};
+function regrid() {
+	if (!track || !track.id.startsWith('file:')) return;
+	const bpm = Math.min(240, Math.max(40, +$('bpm').value || 120));
+	if (+$('bpm').value !== bpm) $('bpm').value = bpm;
+	beats = gridFromBpm(bpm, +$('first').value || 0, duration || 600);
+	layout(); save(); rebuild();
+}
+['bpm', 'first'].forEach((k) => $(k).addEventListener('change', regrid));
+$('setfirst').onclick = () => { $('first').value = audio.currentTime.toFixed(2); regrid(); };
+$('tap').onclick = () => {
+	const now = performance.now(); taps = taps.filter((x) => now - x < 3000); taps.push(now);
+	if (taps.length >= 4) { $('bpm').value = (60000 * (taps.length - 1) / (taps[taps.length - 1] - taps[0])).toFixed(1); regrid(); }
+};
+
+/* ---------- палитра ---------- */
+PALETTE.forEach((p, i) => {
+	const b = document.createElement('button'); b.className = 'lp-sw' + (i === 0 ? ' sel' : ''); b.title = p.name;
+	b.style.background = css({ ...p, b: p.b ?? 100 });
+	b.onclick = () => { document.querySelectorAll('.lp-sw').forEach((x) => x.classList.remove('sel')); b.classList.add('sel');
+		eraser = false; brush = { h: p.h, s: p.s }; if (p.b) $('bri').value = p.b; else if (+$('bri').value <= 1) $('bri').value = 100; };
+	$('palette').appendChild(b);
+});
+const er = document.createElement('button'); er.className = 'lp-sw erase'; er.title = 'Ластик';
+er.onclick = () => { document.querySelectorAll('.lp-sw').forEach((x) => x.classList.remove('sel')); er.classList.add('sel'); eraser = true; };
+$('palette').appendChild(er);
+$('mode').onclick = () => { const m = $('mode'); m.classList.toggle('on'); m.textContent = m.classList.contains('on') ? 'резко' : 'плавно'; };
+
+/* ---------- отрисовка: ось X — доли, а не секунды ---------- */
+const cv = $('cv'), g = cv.getContext('2d'), H = 190, WAVE_H = 112, LAMP_Y = 122, LAMP_H = 60;
+const W = () => $('scroller').clientWidth;
+function layout() {
+	const nb = beats.length ? beatAt(beats, Math.max(duration, 30)) : 64;
+	$('spacer').style.width = Math.max(nb * pxPerBeat + 60, W()) + 'px';
+	const dpr = devicePixelRatio || 1; cv.width = W() * dpr; cv.height = H * dpr;
+	cv.style.width = W() + 'px'; cv.style.height = H + 'px'; g.setTransform(dpr, 0, 0, dpr, 0, 0); draw();
+}
+function draw() {
+	const w = W(), sx = $('scroller').scrollLeft;
+	g.clearRect(0, 0, w, H);
+	if (peaks && beats.length) {
+		g.fillStyle = '#2a4a3d';
+		for (let x = 0; x < w; x++) {
+			const t = beatTime(beats, (x + sx) / pxPerBeat); if (t < 0 || t > duration) continue;
+			const a = peaks[Math.floor(t * 200)] || 0, h = Math.max(1, a * (WAVE_H - 14));
+			g.fillRect(x, WAVE_H / 2 - h / 2 + 6, 1, h);
+		}
+	} else { g.fillStyle = '#6f8a7e'; g.font = '12px ui-monospace, monospace'; g.fillText(!track ? 'выбери трек' : track.missing ? 'нет звука — положи mp3 в web/audio/ или нажми «🎵 файл»' : 'гружу волну…', 12, 60); }
+	// уровни тактов из разбора: тихо / средне / мощно
+	if (track && track.bars) for (let bar = Math.floor(sx / pxPerBeat / 4); bar < track.bars.length && bar * 4 * pxPerBeat - sx < w; bar++) {
+		const lv = track.bars[bar]; g.fillStyle = lv === 'h' ? '#e5482f' : lv === 'm' ? '#2bb37d' : '#24513f';
+		g.fillRect(bar * 4 * pxPerBeat - sx, WAVE_H + 2, 4 * pxPerBeat - 1, 3);
+	}
+	// клетки: показываем и ту, что нарисована на более мелкой сетке
+	const cq = cellQ(), qpx = pxPerBeat / 4;
+	for (let q = Math.floor(sx / qpx / cq) * cq; q * qpx - sx < w; q += cq) {
+		let c = null; for (let k = q; k < q + cq && !c; k++) c = cells[k];
+		const x = q * qpx - sx;
+		g.fillStyle = c ? css(c) : '#11161c'; g.fillRect(x + 1, LAMP_Y, cq * qpx - 2, LAMP_H);
+		if (c && !c.sharp) { g.fillStyle = 'rgba(232,239,233,.35)'; g.fillRect(x + 1, LAMP_Y + LAMP_H - 6, cq * qpx - 2, 6); }
+	}
+	for (let b = Math.floor(sx / pxPerBeat); b * pxPerBeat - sx < w; b++) {
+		const x = b * pxPerBeat - sx; g.fillStyle = b % 4 === 0 ? '#3d6b58' : '#1b2a24'; g.fillRect(x, 0, 1, H);
+		if (b % 4 === 0) { g.fillStyle = '#6f8a7e'; g.font = '10px ui-monospace, monospace'; g.fillText(String(b / 4 + 1), x + 3, 11); }
+	}
+	if (beats.length) { const px = beatAt(beats, audio.currentTime) * pxPerBeat - sx; g.fillStyle = '#e8efe9'; g.fillRect(px - 1, 0, 2, H); }
+}
+$('scroller').addEventListener('scroll', draw);
+window.addEventListener('resize', layout);
+$('res').onchange = () => { save(); draw(); rebuild(); };
+$('offset').onchange = save;
+$('zin').onclick = () => { pxPerBeat = Math.min(220, pxPerBeat * 1.4); layout(); };
+$('zout').onclick = () => { pxPerBeat = Math.max(6, pxPerBeat / 1.4); layout(); };
+
+/* ---------- рисование ---------- */
+let drag = null;
+cv.addEventListener('pointerdown', (e) => {
+	cv.setPointerCapture(e.pointerId);
+	if (e.offsetY < LAMP_Y) drag = { kind: 'wave', x0: e.clientX, sl: $('scroller').scrollLeft, moved: false };
+	else { drag = { kind: 'paint' }; paintAt(e.offsetX); }
+});
+cv.addEventListener('pointermove', (e) => {
+	if (!drag) return;
+	if (drag.kind === 'wave') { const dx = e.clientX - drag.x0; if (Math.abs(dx) > 5) drag.moved = true; $('scroller').scrollLeft = drag.sl - dx; }
+	else paintAt(e.offsetX);
+});
+const endDrag = (e) => {
+	if (drag && drag.kind === 'wave' && !drag.moved && beats.length) seek(beatTime(beats, (e.offsetX + $('scroller').scrollLeft) / pxPerBeat));
+	if (drag && drag.kind === 'paint') { save(); rebuild(); }
+	drag = null;
+};
+cv.addEventListener('pointerup', endDrag);
+cv.addEventListener('pointercancel', (e) => { if (drag && drag.kind === 'wave') drag.moved = true; endDrag(e); });
+function paintAt(x) {
+	const cq = cellQ(), q = Math.floor((x + $('scroller').scrollLeft) / (pxPerBeat / 4) / cq) * cq; if (q < 0) return;
+	for (let k = q; k < q + cq; k++) delete cells[k];
+	if (!eraser) cells[q] = { h: brush.h, s: brush.s, b: +$('bri').value, sharp: $('mode').classList.contains('on') };
+	draw();
+}
+$('auto').onclick = () => {
+	if (!track || !track.bars) return log('авто-свет есть только для треков танцпола — у них разобраны такты');
+	if (Object.keys(cells).length && !confirm('Заменить рисунок авто-светом?')) return;
+	cells = autoShow(track); save(); rebuild(); draw(); log('авто-свет собран: ' + Object.keys(cells).length + ' клеток');
+};
+$('clear').onclick = () => { if (confirm('Стереть весь рисунок?')) { cells = {}; save(); rebuild(); draw(); hold(); } };
+
+/* ---------- игра и отправка на лампу ---------- */
+function rebuild() {
+	// кусок доезжает до лампы за «задержку», поэтому первый строим с упреждением
+	chunks = beats.length ? buildChunks(cells, beats, audio.currentTime + (audio.paused ? 0 : offsetSec()),
+		{ cellQ: cellQ(), endT: duration, darkGap: true }) : [];
+}
+async function sendSteps(steps, label, force) {
+	if ((!liveOn && !force) || !authed || !lamp) return;
+	const t0 = performance.now();
+	try {
+		const j = await api('/api/scene', { lamp, steps, seq: Date.now() });
+		log(`${label} · ${steps.length} шаг. · ${j.ok ? 'ок' : 'ошибка: ' + (j.detail || j.error)} · ${Math.round(performance.now() - t0)} мс`);
+	} catch (e) { log('не отправилось: ' + e); }
+}
+function hold(force) {
+	// на паузе и в конце лампа не должна крутить последний кусок по кругу — замораживаем текущий цвет
+	const c = colorAt(cells, beats, audio.currentTime) || DARK;
+	sendSteps([{ h: c.h, s: c.s, b: c.b ?? 100, d: 300 }], 'стоп-кадр', force);
+}
+function tick() {
+	const t = audio.currentTime;
+	if (liveOn && !audio.paused) {
+		// фоновая вкладка или спящий экран тормозят таймеры: опоздавшие куски не выкидываем, а пересобираем от «сейчас»
+		if (chunks.some((ch) => !ch.sent && t - ch.t > 1.5)) { rebuild(); log('догоняю после паузы таймеров'); }
+		for (const ch of chunks) if (!ch.sent && t >= ch.t - offsetSec()) { ch.sent = true; sendSteps(ch.steps, `кусок ${ch.t.toFixed(1)} с`); }
+	}
+	const c = colorAt(cells, beats, t);
+	$('lamp').style.background = css(c);
+	paintCamRing(c);
+	$('lamp').style.boxShadow = c && (c.b ?? 100) > 1 ? `0 0 26px ${css(c)}` : '0 0 0 1px #24513f';
+	const sc = $('scroller'), px = beatAt(beats, t) * pxPerBeat;
+	if (!audio.paused && (px < sc.scrollLeft || px > sc.scrollLeft + sc.clientWidth * 0.8)) sc.scrollLeft = px - sc.clientWidth * 0.2;
+	draw();
+}
+function play() {
+	if (!audio.src) return log('сначала выбери трек');
+	if (audio.ended || audio.currentTime >= duration - 0.05) audio.currentTime = 0;
+	audio.play(); rebuild(); $('play').textContent = '⏸ пауза';
+	clearInterval(timer); timer = setInterval(tick, 20);
+}
+function stop() {
+	const wasPlaying = !audio.paused;
+	if (wasPlaying) audio.pause();
+	clearInterval(timer); timer = null; $('play').textContent = '▶ играть'; draw();
+	if (wasPlaying) hold();
+}
+function seek(t) { audio.currentTime = Math.max(0, t); rebuild(); draw(); if (audio.paused) hold(); }
+$('play').onclick = () => { if (audio.paused) play(); else stop(); };
+audio.onended = () => { clearInterval(timer); timer = null; $('play').textContent = '▶ играть'; draw(); hold(); };
+$('live').onclick = () => {
+	if (!authed) return log('нет связи с лампой: проверь токен в .env');
+	liveOn = !liveOn; $('live').classList.toggle('on', liveOn); $('live').textContent = '💡 на лампу: ' + (liveOn ? 'вкл' : 'выкл');
+	rebuild(); if (!liveOn && !audio.paused) hold(true);
+};
+$('white').onclick = async () => {
+	if (!authed || !lamp) return log('нет связи с лампой: проверь токен в .env');
+	const j = await api('/api/white', { lamp }); log('белый свет: ' + (j.ok ? 'ок' : (j.detail || j.error)) + (j.ms ? ` · ${j.ms} мс` : ''));
+};
+
+/* ---------- кружок с камерой ---------- */
+let camStream = null, facing = 'user';
+function paintCamRing(c) {
+	if (!camStream) return;
+	const on = c && (c.b ?? 100) > 1;
+	$('cam').style.borderColor = on ? css(c) : '#24513f';
+	$('cam').style.boxShadow = on ? `0 0 0 1px #0a0c10, 0 0 46px ${css(c)}` : '0 0 0 1px #0a0c10, 0 0 40px rgba(0,0,0,.6)';
+}
+async function camOn() {
+	try {
+		camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 720 }, height: { ideal: 720 } }, audio: false });
+	} catch (e) { camStream = null; return log('камера не включилась: ' + (e.name === 'NotAllowedError' ? 'нет разрешения в браузере' : e.message || e)); }
+	$('video').srcObject = camStream;
+	$('cam').classList.add('show'); $('cam').classList.toggle('back', facing !== 'user');
+	$('camera').classList.add('on'); $('flip').style.display = '';
+	paintCamRing(colorAt(cells, beats, audio.currentTime));
+}
+function camOff() {
+	if (camStream) camStream.getTracks().forEach((t) => t.stop());
+	camStream = null; $('video').srcObject = null;
+	$('cam').classList.remove('show'); $('camera').classList.remove('on'); $('flip').style.display = 'none';
+}
+$('camera').onclick = () => (camStream ? camOff() : camOn());
+$('flip').onclick = () => { facing = facing === 'user' ? 'environment' : 'user'; camOff(); camOn(); };
+(() => {
+	const el = $('cam'); let d = null;
+	el.addEventListener('pointerdown', (e) => {
+		el.setPointerCapture(e.pointerId);
+		const r = el.getBoundingClientRect(); d = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+		el.style.cursor = 'grabbing';
+	});
+	el.addEventListener('pointermove', (e) => {
+		if (!d) return;
+		const w = el.offsetWidth;
+		el.style.left = Math.min(innerWidth - w, Math.max(0, e.clientX - d.dx)) + 'px';
+		el.style.top = Math.min(innerHeight - w, Math.max(0, e.clientY - d.dy)) + 'px';
+		el.style.right = 'auto'; el.style.bottom = 'auto';
+	});
+	const end = () => { d = null; el.style.cursor = 'grab'; };
+	el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+	el.addEventListener('dblclick', () => el.classList.toggle('big'));
+})();
+
+renderAuth();
+const first = TRACKS.find((t) => t.id === localStorage.getItem('lamp:track')) || TRACKS[0];
+$('track').value = first.id;
+$('track').addEventListener('change', (e) => localStorage.setItem('lamp:track', e.target.value));
+pickTrack(first.id);
+})();
+		</script>
+</body>
+</html>
