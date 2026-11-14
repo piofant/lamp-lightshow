@@ -1,12 +1,12 @@
-# Светошоу для умной лампочки Яндекса
+# Светошоу для умной лампочки
 
-Свет под музыку на обычной лампочке Яндекса, без перепрошивки и без отвязки от Алисы. Выбираешь трек, жмёшь «✨ авто-свет», и лампа мигает в долю. Шоу можно дорисовать руками на сетке, как в музыкальном редакторе.
+Свет под музыку на обычной умной лампочке, без перепрошивки и без отвязки от Алисы. Выбираешь трек, жмёшь «✨ авто-свет», и лампа мигает в долю. Шоу можно дорисовать руками на сетке, как в музыкальном редакторе.
 
-*Light show for a Yandex smart bulb, synced to music via the Yandex Smart Home cloud API, with no flashing and no Matter re-pairing. It works because of an undocumented custom-scene format, described below.*
+*Light show for a smart bulb, synced to music via the smart home cloud API, with no flashing and no Matter re-pairing. It works because of an undocumented custom-scene format, described below.*
 
 ![Редактор: волна трека, клетки света по долям, журнал отправки кусков на лампу и кружок с веб-камерой](docs/screenshot.jpg)
 
-Идею подсмотрел в [рилсе](https://www.instagram.com/reels/DfW0t_lIuP3/), где автор навайбкодил редактор света для своей люстры. Здесь то же самое, только для лампочки Яндекса.
+Идею подсмотрел в [рилсе](https://www.instagram.com/reels/DfW0t_lIuP3/), где автор навайбкодил редактор света для своей люстры. Здесь то же самое, только для умной лампочки.
 
 ## Что умеет
 
